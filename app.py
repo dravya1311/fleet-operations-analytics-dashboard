@@ -19,7 +19,7 @@ st.markdown("---")
 # -------------------------------
 @st.cache_data
 def load_data():
-    # If first row contains headers
+
     df = pd.read_csv("transport data(3).csv", header=1)
 
     numeric_cols = [
@@ -37,11 +37,11 @@ def load_data():
         df["Date"],
         dayfirst=True,
         errors="coerce"
-)
-# Remove rows where date could not be parsed
-df = df.dropna(subset=["Date"])
+    )
 
-return df
+    df = df.dropna(subset=["Date"])
+
+    return df
 
 df = load_data()
 
