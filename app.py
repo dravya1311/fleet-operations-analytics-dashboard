@@ -40,7 +40,7 @@ def load_data():
 )
 # Remove rows where date could not be parsed
 df = df.dropna(subset=["Date"])
- return df
+return df
 
 df = load_data()
 
