@@ -38,11 +38,9 @@ def load_data():
     dayfirst=True,
     errors="coerce"
 )
-    # Remove rows where date could not be parsed
+# Remove rows where date could not be parsed
 df = df.dropna(subset=["Date"])
-
-return df
-
+    return df
 
 df = load_data()
 
