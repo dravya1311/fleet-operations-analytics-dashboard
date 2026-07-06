@@ -1,541 +1,238 @@
-# ==========================================================
-# Fleet Management Dashboard
-# Part 1
-# ==========================================================
-
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 
-# ----------------------------------------------------------
+# -------------------------------
 # Page Configuration
-# ----------------------------------------------------------
-
+# -------------------------------
 st.set_page_config(
-    page_title="Fleet Management Dashboard",
-    page_icon="🚚",
+    page_title="Fleet Operations Dashboard",
+    page_icon="🚛",
     layout="wide"
 )
 
-st.title("🚚 Fleet Management Dashboard")
-st.markdown("Fleet Performance | Revenue | Delivery Analytics")
+st.title("🚛 Fleet Operations Dashboard")
+st.markdown("---")
 
-# ----------------------------------------------------------
+# -------------------------------
 # Load Data
-# ----------------------------------------------------------
-
+# -------------------------------
 @st.cache_data
 def load_data():
+    # If first row contains headers
+    df = pd.read_csv("transport data(3).csv", header=1)
 
-    df = pd.read_csv("transport data.csv")
-
-    # Clean column names
-    df.columns = df.columns.str.strip().str.lower()
-
-    # Remove duplicate rows
-    df = df.drop_duplicates()
-
-    # Clean text columns
-    object_cols = df.select_dtypes(include="object").columns
-
-    for col in object_cols:
-        df[col] = (
-            df[col]
-            .astype(str)
-            .str.strip()
-            .str.lower()
-        )
-
-    # Numeric columns
     numeric_cols = [
-        "distance_km",
-        "package_weight_kg",
-        "delivery_time_hours",
-        "expected_time_hours",
-        "delivery_rating",
-        "delivery_cost"
+        "KM Traveled",
+        "Liters",
+        "Fuel",
+        "Maintenance",
+        "Fixed Costs"
     ]
 
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df = df.dropna()
-
-    # Revenue
-    df["revenue"] = df["delivery_cost"]
-
-    # Weight Category
-    # (As per your original requirement)
-
-    df["weight_category"] = np.where(
-        df["package_weight_kg"] > 20,
-        "light",
-        "heavy"
-    )
+    df["Date"] = pd.to_datetime(df["Date"])
 
     return df
 
 
 df = load_data()
 
-# ----------------------------------------------------------
-# Sidebar
-# ----------------------------------------------------------
-
+# -------------------------------
+# Sidebar Filters
+# -------------------------------
 st.sidebar.header("Filters")
 
-region = st.sidebar.multiselect(
-    "Region",
-    sorted(df["region"].unique()),
-    default=sorted(df["region"].unique())
+truck = st.sidebar.multiselect(
+    "Truck",
+    sorted(df["Truck ID"].unique())
 )
 
-vehicle = st.sidebar.multiselect(
-    "Vehicle Type",
-    sorted(df["vehicle_type"].unique()),
-    default=sorted(df["vehicle_type"].unique())
+driver = st.sidebar.multiselect(
+    "Driver",
+    sorted(df["Drive ID"].unique())
 )
 
-mode = st.sidebar.multiselect(
-    "Delivery Mode",
-    sorted(df["delivery_mode"].unique()),
-    default=sorted(df["delivery_mode"].unique())
+if truck:
+    df = df[df["Truck ID"].isin(truck)]
+
+if driver:
+    df = df[df["Drive ID"].isin(driver)]
+
+# -------------------------------
+# KPI Calculations
+# -------------------------------
+total_km = df["KM Traveled"].sum()
+
+fleet_size = df["Truck ID"].nunique()
+
+fuel_cost = df["Fuel"].sum()
+
+maintenance_cost = df["Maintenance"].sum()
+
+fixed_cost = df["Fixed Costs"].sum()
+
+operating_cost = fuel_cost + maintenance_cost + fixed_cost
+
+cost_per_km = (
+    operating_cost / total_km
+    if total_km > 0 else 0
 )
 
-weather = st.sidebar.multiselect(
-    "Weather",
-    sorted(df["weather_condition"].unique()),
-    default=sorted(df["weather_condition"].unique())
+fuel_cost_per_km = (
+    fuel_cost / total_km
+    if total_km > 0 else 0
 )
 
-package = st.sidebar.multiselect(
-    "Package Type",
-    sorted(df["package_type"].unique()),
-    default=sorted(df["package_type"].unique())
+mileage = (
+    total_km / df["Liters"].sum()
+    if df["Liters"].sum() > 0 else 0
 )
 
-filtered = df[
-    (df["region"].isin(region)) &
-    (df["vehicle_type"].isin(vehicle)) &
-    (df["delivery_mode"].isin(mode)) &
-    (df["weather_condition"].isin(weather)) &
-    (df["package_type"].isin(package))
-]
-
-# ----------------------------------------------------------
+# -------------------------------
 # KPI Cards
-# ----------------------------------------------------------
+# -------------------------------
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 
-total_delivery = len(filtered)
-total_revenue = filtered["revenue"].sum()
-avg_revenue = filtered["revenue"].mean()
-avg_rating = filtered["delivery_rating"].mean()
+c1.metric("Total KM", f"{total_km:,.0f}")
 
-delay_pct = (
-    filtered["delayed"]
-    .eq("yes")
-    .mean() * 100
+c2.metric("Fleet Size", fleet_size)
+
+c3.metric("Operating Cost", f"₹{operating_cost:,.0f}")
+
+c4.metric("Cost / KM", f"₹{cost_per_km:.2f}")
+
+c5.metric("Fuel Cost / KM", f"₹{fuel_cost_per_km:.2f}")
+
+c6.metric("Mileage", f"{mileage:.2f} km/L")
+
+st.markdown("---")
+
+# -------------------------------
+# Distance by Truck
+# -------------------------------
+truck_km = (
+    df.groupby("Truck ID")["KM Traveled"]
+      .sum()
+      .sort_values(ascending=False)
+      .head(10)
+      .reset_index()
 )
 
-failure_pct = (
-    filtered["delivery_status"]
-    .eq("failed")
-    .mean() * 100
+fig1 = px.bar(
+    truck_km,
+    x="Truck ID",
+    y="KM Traveled",
+    title="Top 10 Trucks by Distance"
 )
 
-avg_cost = filtered["delivery_cost"].mean()
+# -------------------------------
+# Cost Breakdown
+# -------------------------------
+cost_df = pd.DataFrame({
+    "Category": [
+        "Fuel",
+        "Maintenance",
+        "Fixed Cost"
+    ],
+    "Amount": [
+        fuel_cost,
+        maintenance_cost,
+        fixed_cost
+    ]
+})
 
-c1, c2, c3, c4 = st.columns(4)
+fig2 = px.pie(
+    cost_df,
+    names="Category",
+    values="Amount",
+    hole=0.5,
+    title="Operating Cost Breakdown"
+)
 
-c1.metric("Total Deliveries", f"{total_delivery:,}")
-c2.metric("Revenue", f"₹ {total_revenue:,.0f}")
-c3.metric("Avg Revenue", f"₹ {avg_revenue:,.0f}")
-c4.metric("Avg Rating", f"{avg_rating:.2f}")
+# -------------------------------
+# Daily KM Trend
+# -------------------------------
+daily = (
+    df.groupby("Date")["KM Traveled"]
+      .sum()
+      .reset_index()
+)
 
-c5, c6, c7 = st.columns(3)
+fig3 = px.line(
+    daily,
+    x="Date",
+    y="KM Traveled",
+    title="Daily Distance Trend"
+)
 
-c5.metric("Delayed %", f"{delay_pct:.1f}%")
-c6.metric("Failure %", f"{failure_pct:.1f}%")
-c7.metric("Avg Delivery Cost", f"₹ {avg_cost:,.0f}")
+# -------------------------------
+# Truck-wise Cost per KM
+# -------------------------------
+truck_cost = (
+    df.groupby("Truck ID")
+      .agg({
+          "KM Traveled":"sum",
+          "Fuel":"sum",
+          "Maintenance":"sum",
+          "Fixed Costs":"sum"
+      })
+)
 
-st.markdown("---")
-
-# ==========================================================
-# Charts Section - 1
-# ==========================================================
-
-# -----------------------------
-# Row 1
-# -----------------------------
-
-col1, col2 = st.columns(2)
-
-# 1. Average Revenue by Region
-
-with col1:
-
-    revenue_region = (
-        filtered.groupby("region", as_index=False)["revenue"]
-        .mean()
-        .sort_values("revenue", ascending=False)
+truck_cost["Cost per KM"] = (
+    (
+        truck_cost["Fuel"] +
+        truck_cost["Maintenance"] +
+        truck_cost["Fixed Costs"]
     )
-
-    fig = px.bar(
-        revenue_region,
-        x="region",
-        y="revenue",
-        color="region",
-        text_auto=".2f",
-        title="Average Revenue by Region"
-    )
-
-    fig.update_layout(showlegend=False)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# 2. Average Rating by Delivery Mode
-
-with col2:
-
-    rating = (
-        filtered.groupby("delivery_mode", as_index=False)["delivery_rating"]
-        .mean()
-        .sort_values("delivery_rating", ascending=False)
-    )
-
-    fig = px.bar(
-        rating,
-        x="delivery_mode",
-        y="delivery_rating",
-        color="delivery_mode",
-        text_auto=".2f",
-        title="Average Rating by Delivery Mode"
-    )
-
-    fig.update_layout(showlegend=False)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# Row 2
-# -----------------------------
-
-col3, col4 = st.columns(2)
-
-# 3. Revenue & Delay by Weight Category
-
-with col3:
-
-    weight = (
-        filtered.groupby(
-            ["weight_category", "delayed"],
-            as_index=False
-        )["revenue"]
-        .sum()
-    )
-
-    fig = px.bar(
-        weight,
-        x="weight_category",
-        y="revenue",
-        color="delayed",
-        barmode="group",
-        text_auto=".2s",
-        title="Revenue by Package Weight & Delay"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# 4. Failure % by Delivery Mode
-
-with col4:
-
-    failure = (
-        filtered.groupby("delivery_mode")["delivery_status"]
-        .apply(lambda x: (x == "failed").mean() * 100)
-        .reset_index(name="failure_pct")
-    )
-
-    fig = px.bar(
-        failure,
-        x="delivery_mode",
-        y="failure_pct",
-        color="delivery_mode",
-        text_auto=".1f",
-        title="Failure % by Delivery Mode"
-    )
-
-    fig.update_layout(
-        yaxis_title="Failure %",
-        showlegend=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# Row 3
-# -----------------------------
-
-col5, col6 = st.columns(2)
-
-# 5. Delay % by Weather & Package Type
-
-with col5:
-
-    delay = (
-        filtered.groupby(
-            ["weather_condition", "package_type"]
-        )["delayed"]
-        .apply(lambda x: (x == "yes").mean() * 100)
-        .reset_index(name="delay_pct")
-    )
-
-    fig = px.imshow(
-        delay.pivot(
-            index="package_type",
-            columns="weather_condition",
-            values="delay_pct"
-        ),
-        text_auto=".1f",
-        aspect="auto",
-        title="Delay % by Weather & Package Type",
-        color_continuous_scale="Reds"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# 6. Revenue Share by Vehicle & Package Type
-
-with col6:
-
-    revenue_share = (
-        filtered.groupby(
-            ["vehicle_type", "package_type"],
-            as_index=False
-        )["revenue"]
-        .sum()
-    )
-
-    fig = px.bar(
-        revenue_share,
-        x="vehicle_type",
-        y="revenue",
-        color="package_type",
-        barmode="stack",
-        text_auto=".2s",
-        title="Revenue Share by Vehicle & Package Type"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-st.markdown("---")
-
-# ==========================================================
-# Charts Section - 2
-# ==========================================================
-
-# -----------------------------
-# Row 4
-# -----------------------------
-
-col7, col8 = st.columns(2)
-
-# Revenue by Delivery Partner
-
-with col7:
-
-    partner = (
-        filtered.groupby("delivery_partner", as_index=False)["revenue"]
-        .sum()
-        .sort_values("revenue", ascending=False)
-    )
-
-    fig = px.bar(
-        partner,
-        x="delivery_partner",
-        y="revenue",
-        color="delivery_partner",
-        text_auto=".2s",
-        title="Revenue by Delivery Partner"
-    )
-
-    fig.update_layout(showlegend=False)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# Revenue by Vehicle Type
-
-with col8:
-
-    vehicle = (
-        filtered.groupby("vehicle_type", as_index=False)["revenue"]
-        .sum()
-    )
-
-    fig = px.pie(
-        vehicle,
-        names="vehicle_type",
-        values="revenue",
-        hole=0.45,
-        title="Revenue Share by Vehicle Type"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# Row 5
-# -----------------------------
-
-col9, col10 = st.columns(2)
-
-# Average Delivery Time
-
-with col9:
-
-    delivery_time = (
-        filtered.groupby("delivery_mode", as_index=False)["delivery_time_hours"]
-        .mean()
-    )
-
-    fig = px.bar(
-        delivery_time,
-        x="delivery_mode",
-        y="delivery_time_hours",
-        color="delivery_mode",
-        text_auto=".2f",
-        title="Average Delivery Time (Hours)"
-    )
-
-    fig.update_layout(showlegend=False)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# Delayed Deliveries by Region
-
-with col10:
-
-    region_delay = (
-        filtered.groupby("region")["delayed"]
-        .apply(lambda x: (x == "yes").sum())
-        .reset_index(name="Delayed Deliveries")
-    )
-
-    fig = px.bar(
-        region_delay,
-        x="region",
-        y="Delayed Deliveries",
-        color="region",
-        text_auto=True,
-        title="Delayed Deliveries by Region"
-    )
-
-    fig.update_layout(showlegend=False)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# Row 6
-# -----------------------------
-
-col11, col12 = st.columns(2)
-
-# Delivery Status
-
-with col11:
-
-    fig = px.pie(
-        filtered,
-        names="delivery_status",
-        hole=0.45,
-        title="Delivery Status Distribution"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# Package Type
-
-with col12:
-
-    fig = px.pie(
-        filtered,
-        names="package_type",
-        hole=0.45,
-        title="Package Type Distribution"
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-# ==========================================================
-# Executive Insights
-# ==========================================================
-
-st.markdown("---")
-
-st.subheader("📌 Executive Insights")
-
-if len(filtered) > 0:
-
-    best_region = (
-        filtered.groupby("region")["revenue"]
-        .sum()
-        .idxmax()
-    )
-
-    best_vehicle = (
-        filtered.groupby("vehicle_type")["revenue"]
-        .sum()
-        .idxmax()
-    )
-
-    highest_failure = (
-        filtered.groupby("delivery_mode")["delivery_status"]
-        .apply(lambda x: (x == "failed").mean())
-        .idxmax()
-    )
-
-    highest_delay = (
-        filtered.groupby("weather_condition")["delayed"]
-        .apply(lambda x: (x == "yes").mean())
-        .idxmax()
-    )
-
-    st.success(f"🏆 Highest Revenue Region: **{best_region.title()}**")
-
-    st.info(f"🚛 Best Revenue Vehicle: **{best_vehicle.title()}**")
-
-    st.warning(f"⚠ Highest Failure Delivery Mode: **{highest_failure.title()}**")
-
-    st.error(f"🌧 Highest Delay Weather: **{highest_delay.title()}**")
-
-else:
-
-    st.warning("No records available for the selected filters.")
-
-# ==========================================================
-# Download Data
-# ==========================================================
-
-st.markdown("---")
-
-csv = filtered.to_csv(index=False).encode("utf-8")
+    /
+    truck_cost["KM Traveled"]
+)
+
+truck_cost = (
+    truck_cost
+    .sort_values("Cost per KM", ascending=False)
+    .head(10)
+    .reset_index()
+)
+
+fig4 = px.bar(
+    truck_cost,
+    x="Truck ID",
+    y="Cost per KM",
+    title="Top 10 Trucks by Cost per KM"
+)
+
+# -------------------------------
+# Layout
+# -------------------------------
+left, right = st.columns(2)
+
+with left:
+    st.plotly_chart(fig1, use_container_width=True)
+    st.plotly_chart(fig3, use_container_width=True)
+
+with right:
+    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig4, use_container_width=True)
+
+# -------------------------------
+# Data Table
+# -------------------------------
+st.markdown("## Fleet Data")
+
+st.dataframe(df, use_container_width=True)
+
+# -------------------------------
+# Download Button
+# -------------------------------
+csv = df.to_csv(index=False).encode("utf-8")
 
 st.download_button(
-    "📥 Download Filtered Data",
-    csv,
-    "fleet_dashboard_filtered.csv",
-    "text/csv"
-)
-
-# ==========================================================
-# Footer
-# ==========================================================
-
-st.markdown("---")
-
-st.caption(
-    "Fleet Management Dashboard | Built using Streamlit • Pandas • Plotly"
+    label="Download Filtered Data",
+    data=csv,
+    file_name="fleet_filtered_data.csv",
+    mime="text/csv"
 )
