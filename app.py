@@ -241,3 +241,45 @@ st.download_button(
     file_name="fleet_filtered_data.csv",
     mime="text/csv"
 )
+# -----------------------------------------
+# Operations Insights
+# -----------------------------------------
+st.markdown("---")
+st.subheader("📌 Fleet Operations Insights")
+
+top_truck = truck_km.iloc[0]["Truck ID"]
+top_km = truck_km.iloc[0]["KM Traveled"]
+
+highest_cost_truck = truck_cost.iloc[0]["Truck ID"]
+highest_cost = truck_cost.iloc[0]["Cost per KM"]
+
+fuel_percent = (fuel_cost / operating_cost) * 100 if operating_cost else 0
+maint_percent = (maintenance_cost / operating_cost) * 100 if operating_cost else 0
+fixed_percent = (fixed_cost / operating_cost) * 100 if operating_cost else 0
+
+st.info(f"""
+### Key Insights
+
+✅ **Total Fleet Distance:** **{total_km:,.0f} KM**
+
+🚛 **Most Utilized Truck:** **{top_truck}**
+covered **{top_km:,.0f} KM**
+
+💰 **Highest Operating Cost/KM:** **{highest_cost_truck}**
+at **₹{highest_cost:.2f}/KM**
+
+⛽ Fuel contributes **{fuel_percent:.1f}%**
+of total operating cost.
+
+🔧 Maintenance contributes **{maint_percent:.1f}%**
+of total operating cost.
+
+🏢 Fixed cost contributes **{fixed_percent:.1f}%**
+of total operating cost.
+
+📊 Fleet Average Cost/KM is
+**₹{cost_per_km:.2f}**
+
+⛽ Fleet Average Mileage is
+**{mileage:.2f} KM/L**
+""")
