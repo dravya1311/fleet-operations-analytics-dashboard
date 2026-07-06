@@ -283,3 +283,18 @@ of total operating cost.
 ⛽ Fleet Average Mileage is
 **{mileage:.2f} KM/L**
 """)
+st.success("### Manager Recommendation")
+
+if fuel_percent > 55:
+    st.write("• Fuel is the largest cost component. Review fuel efficiency and driver behavior.")
+
+if mileage < 4:
+    st.write("• Fleet mileage is below the desired level. Inspect high fuel-consuming vehicles.")
+
+if highest_cost > cost_per_km * 1.25:
+    st.write(f"• {highest_cost_truck} has a significantly higher operating cost per KM. Schedule a maintenance inspection.")
+
+if maintenance_cost > fuel_cost * 0.5:
+    st.write("• Maintenance spending is relatively high. Check for aging vehicles or recurring repairs.")
+
+st.write("• Continue monitoring high-utilization trucks to prevent unexpected breakdowns.")
