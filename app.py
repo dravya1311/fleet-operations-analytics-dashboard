@@ -33,7 +33,13 @@ def load_data():
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = pd.to_datetime(
+    df["Date"],
+    dayfirst=True,
+    errors="coerce"
+)
+    # Remove rows where date could not be parsed
+df = df.dropna(subset=["Date"])
 
     return df
 
